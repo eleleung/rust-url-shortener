@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+kms() {
+  exit 111
+}
+
+exitfn() {
+  trap SIGINT
+  kms
+}
+
+trap "exitfn" INT
+
+[ -z "$1" ] && echo "use like: ./configure_nginx env" && kms
+
+./configure_inventory $1 || kms
+
+REMOTE_IP=$(./terraform_output $1 ip)
+KEY_NAME=$(./terraform_output $1 key_name)
+ENV_NAME=$(./terraform_output $1 subdomain)
+
+{ [ "$REMOTE_IP" ] && [ "$KEY_NAME" ] && [ "$SUBDOMAIN" ]; } || { echo "required terraform output missing"; kms; }
+
+export ANSIBLE_SSH_PIPELINING=True
+
+ansible-playbook ansible/configure_nginx.yml -i terraform/environment/$1/inventory --key-file=~/$KEY_NAME.pem || kms

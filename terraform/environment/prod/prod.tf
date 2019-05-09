@@ -10,6 +10,10 @@ variable "appkey" {
   default = "vromio"
 }
 
+variable "env_name" {
+  default = "vromio-prod"
+}
+
 variable "db_password" {}
 
 module "vromio" {
@@ -29,15 +33,20 @@ module "vromio" {
 
   key_name = "${var.appkey}"
 
-  env_name = "vromio-prod"
+  env_name = "${var.env_name}"
 }
 
 output "ip" { value = "${module.vromio.ip}" }
 
 output "db_host" { value = "${module.vromio.db_host}" }
 output "db_port" { value = "${module.vromio.db_port}" }
+output "db_password" { value = "${var.db_password}" }
 
 output "key_name" { value = "${var.appkey}" }
+
+output "env_name" { value = "${var.env_name}" }
+
+output "domains" { value = ["vrom.io"] }
 
 output "internal_dns" {
   value = "${module.vromio.internal_dns}"

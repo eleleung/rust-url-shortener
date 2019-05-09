@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+kms() {
+  exit 111
+}
+
+echo "configuring in $(pwd)..."
+
+cd ./terraform/environment/$1 2> /dev/null || { echo "environment $1 is not valid"; kms; }
+
+terraform output >> output.yml

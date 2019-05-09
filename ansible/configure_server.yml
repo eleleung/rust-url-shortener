@@ -1,0 +1,58 @@
+---
+- hosts: appservers
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: dist upgrade
+      apt:
+        update_cache: yes
+        upgrade: dist
+    - name: certbot repo
+      apt_repository:
+        repo: ppa:certbot/certbot
+        update_cache: yes
+    - name: install packages
+      apt:
+        update_cache: yes
+        name: "{{item}}"
+      with_items:
+        - nginx
+        - certbot
+        - htop
+        - unzip
+        - language-pack-en
+        - ntp
+    - user:
+        name: vromio
+        comment: "Spatula Runner"
+    - name: check if swap exists
+      stat: path=/mnt/8GB.swap get_md5=false get_checksum=false
+      register: swap_result
+    - name: do swap stuff
+      block:
+        - name: add some swap
+          command: fallocate -l 8G /mnt/8GB.swap
+        - name: format swap
+          command: mkswap /mnt/8GB.swap
+        - name: swap permissions
+          file: path=/mnt/8GB.swap owner=root group=root mode=0600
+        - name: write swap entry in fstab
+          mount: name=none src=/mnt/8GB.swap fstype=swap opts=sw passno=0 dump=0 state=present
+      when: swap_result.stat.exists == False
+    - name: set the machine name
+      hostname: name={{env_name}}
+    - name: check if a reboot is required
+      shell: "[ -f /var/run/reboot-required ]"
+      failed_when: False
+      register: reboot_required
+    - name: reboot and wait
+      block:
+        - name: reboot
+          shell: sleep 2 && /sbin/reboot
+          async: 1
+          poll: 0
+          ignore_errors: true
+        - name: wait
+          become: no
+          local_action: wait_for host="{{ inventory_hostname }}" port=22 state=started delay=30 timeout=300
+      when: reboot_required.rc == 0

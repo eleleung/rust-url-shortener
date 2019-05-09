@@ -27,9 +27,6 @@ module "vromio" {
 
   auto_minor_version_upgrade = "false"
 
-  app_sg_description = "Production security group"
-  db_sg_description  = "production rules for mysql"
-
   key_name = "${var.appkey}"
 
   env_name = "vromio-prod"

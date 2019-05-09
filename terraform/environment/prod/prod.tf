@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "vromio-tfstate-backend"
+    bucket = "vromio-tfstate"
     key    = "prod"
     region = "ap-southeast-2"
   }

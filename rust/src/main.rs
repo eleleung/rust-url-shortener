@@ -7,7 +7,7 @@ use hyper::service::service_fn_ok;
 static TEXT: &str = "Hello, World!";
 
 fn main() {
-    let addr = ([127, 0, 0, 1], 6980).into();
+    let addr = ([0, 0, 0, 0], 6980).into();
 
     let new_svc = || {
         service_fn_ok(|_req|{

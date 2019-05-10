@@ -5,4 +5,4 @@
   become_user: root
   tasks:
     - name: copy release binary
-      copy: src={{workspace}}/rust/target/release/vromio dest=/opt/vromio/
+      copy: src={{playbook_dir}}/../rust/target/release/vromio dest=/opt/vromio/

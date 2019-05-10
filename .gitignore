@@ -2,3 +2,5 @@
 .terraform
 *.tfvars
 output.yml
+inventory
+*.retry

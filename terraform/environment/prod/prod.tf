@@ -46,7 +46,7 @@ output "key_name" { value = "${var.appkey}" }
 
 output "env_name" { value = "${var.env_name}" }
 
-output "domains" { value = ["vrom.io"] }
+output "domains" { value = "[\"vrom.io\"]" }
 
 output "internal_dns" {
   value = "${module.vromio.internal_dns}"

@@ -19,4 +19,4 @@ KEY_NAME=$(./terraform_output $1 key_name)
 
 export ANSIBLE_SSH_PIPELINING=True
 
-ansible-playbook ansible/configure_nginx.yml -i terraform/environment/$1/inventory --key-file=~/$KEY_NAME.pem || kms
+ansible-playbook ansible/configure_server.yml -i terraform/environment/$1/inventory --key-file=~/$KEY_NAME.pem || kms

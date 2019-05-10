@@ -14,17 +14,10 @@
     - name: install packages
       apt:
         update_cache: yes
-        name: "{{item}}"
-      with_items:
-        - nginx
-        - certbot
-        - htop
-        - unzip
-        - language-pack-en
-        - ntp
+        name: ["nginx", "certbot", "htop", "unzip", "language-pack-en", "ntp"]
     - user:
         name: vromio
-        comment: "Spatula Runner"
+        comment: "Vromio Runner"
     - name: check if swap exists
       stat: path=/mnt/8GB.swap get_md5=false get_checksum=false
       register: swap_result

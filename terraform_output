@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+
+kms() {
+  exit 111
+}
+
+cd terraform/environment/$1 2> /dev/null || kms
+
+grep "^$2 = " output.yml | sed "s/^$2 = //"

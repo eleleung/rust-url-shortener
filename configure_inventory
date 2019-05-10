@@ -4,8 +4,16 @@ kms() {
   exit 111
 }
 
-echo "configuring in $(pwd)..."
+[ -z "$1" ] && echo "use like: ./configure_inventory env" && kms
 
 cd ./terraform/environment/$1 2> /dev/null || { echo "environment $1 is not valid"; kms; }
 
-terraform output >> output.yml
+terraform output > output.yml
+
+APP_IP=$(grep "^ip = " output.yml | sed "s/^ip = //")
+
+echo "[appservers]" > inventory
+echo "$APP_IP ansible_python_interpreter=/usr/bin/python3" >> inventory
+echo "" >> inventory
+echo "[appservers:vars]" >> inventory
+sed "s/ = /=/" output.yml >> inventory

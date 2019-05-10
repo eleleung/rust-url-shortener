@@ -1,0 +1,31 @@
+---
+- hosts: appservers
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: certbot challenge directory
+      file: path=/opt/certbot state=directory
+    - name: configure http nginx
+      template: src=templates/default.j2 dest=/etc/nginx/sites-available/default
+    - name: configure https nginx
+      template: src=templates/domain.conf.j2 dest=/etc/nginx/sites-available/{{item}}.conf
+      with_items: "{{ domains }}"
+    - name: nginx reloaded
+      service:
+        name: nginx
+        enabled: yes
+        state: reloaded
+    - name: grab certs
+      command: certbot --agree-tos --email andrew@spatula.io certonly --webroot -n -w /opt/certbot -d {{item}} --expand
+      with_items: "{{ domains }}"
+    - name: add domains to sites-enabled
+      file:
+        src: /etc/nginx/sites-available/{{item}}.conf
+        dest: /etc/nginx/sites-enabled/{{item}}.conf
+        state: link
+      with_items: "{{ domains }}"
+    - name: nginx restarted (in case certs were changed)
+      service:
+        name: nginx
+        enabled: yes
+        state: restarted

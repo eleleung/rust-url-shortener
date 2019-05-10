@@ -1,0 +1,8 @@
+---
+- hosts: appservers
+  remote_user: ubuntu
+  become: true
+  become_user: root
+  tasks:
+    - name: copy release binary
+      copy: src={{workspace}}/rust/target/release/vromio dest=/opt/vromio/

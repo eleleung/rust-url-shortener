@@ -4,7 +4,7 @@ use hyper::{Body, Response, Server};
 use hyper::rt::Future;
 use hyper::service::service_fn_ok;
 
-static TEXT: &str = "Hello, World!";
+static TEXT: &str = "hello";
 
 fn main() {
     let addr = ([0, 0, 0, 0], 6980).into();

@@ -1,8 +1,8 @@
 use std::time::{Instant};
 
-use id::*;
+use super::id::*;
 
-struct ShortUrlClick {
+pub struct ShortUrlClick {
     id: Id,
     time: Instant,
     addr: String,

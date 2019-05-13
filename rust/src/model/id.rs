@@ -1,3 +1,3 @@
-struct Id {
+pub struct Id {
     value: i32
 }

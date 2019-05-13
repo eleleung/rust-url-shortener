@@ -1,5 +1,5 @@
-use short_url_click::ShortUrlClick;
+use super::short_url_click::ShortUrlClick;
 
-struct LinkClicks {
+pub struct LinkClicks {
     clicks: Vec<ShortUrlClick>
 }

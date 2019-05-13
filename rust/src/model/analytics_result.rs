@@ -1,6 +1,6 @@
-use std::hash::HashMap;
+use std::collections::hash_map::{HashMap};
 
-use link_clicks::LinkClicks;
+use super::link_clicks::LinkClicks;
 
 pub struct AnalyticsResult {
     links: HashMap<String, LinkClicks>

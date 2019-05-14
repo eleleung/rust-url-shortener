@@ -1,9 +1,12 @@
 [package]
 name = "vromio"
 version = "0.1.0"
-authors = ["djo <damo@wedispatch.io>"]
+authors = ["djo <damo@wedispatch.io>", "ele <ele@wedispatch.io>"]
 edition = "2018"
 
 [dependencies]
 hyper = "0.12.28"
+futures = "0.1.21"
 postgres = "0.15"
+r2d2_postgres = "0.14"
+r2d2 = "0.8"

@@ -1,5 +1,7 @@
 use std::collections::hash_map::{HashMap};
-use std::time::{Instant};
+
+use chrono::NaiveDateTime;
+use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]
@@ -11,7 +13,7 @@ pub struct Id {
 #[derive(Debug)]
 pub struct ShortUrlClick {
     pub id: Id,
-    pub time: Instant,
+    pub time: NaiveDateTime,
     pub addr: String,
     pub referrer: String,
     pub agent: String

@@ -7,37 +7,23 @@ use std::env;
 use std::io;
 use std::thread;
 
-use hyper::{Body, Response, Server, Request, Method, StatusCode};
+use hyper::{Server};
 use hyper::service::service_fn;
+use hyper::rt::run;
 
-use futures::{future, Future};
+use futures::{Future, future};
 
 use r2d2_postgres::PostgresConnectionManager;
 
-static NOT_FOUND: &[u8] = b"Not Found";
-static SUCCESS: &[u8] = b"Success";
+mod routes;
+use routes::svc_routes;
 
-type GenericError = Box<dyn std::error::Error + Send + Sync>;
-type ResponseFuture = Box<Future<Item=Response<Body>, Error=GenericError> + Send>;
+mod models;
+mod random;
+mod lib;
 
-fn svc_routes(req: Request<Body>) -> ResponseFuture {
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => {
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::OK)
-                .body(Body::from(SUCCESS))
-                .unwrap()
-            ))
-        },
-        _ => {
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from(NOT_FOUND))
-                .unwrap()
-            ))
-        }
-    }
-}
+mod server;
+use server::VromioServer;
 
 fn main() {
     let db_host = env::var("DB_HOST").expect("DB_HOST must be set");
@@ -57,6 +43,7 @@ fn main() {
 
     let handler = thread::spawn(move || {
         let client = pool.get().unwrap();
+
         client
             .execute("CREATE TABLE IF NOT EXISTS ShortUrl (
                 id bigint check (id > 0) NOT NULL,
@@ -81,7 +68,8 @@ fn main() {
             .unwrap();
 
         client
-            .execute("CREATE INDEX urlTime ON ShortUrlClick (url, time)", &[])
+            .execute("CREATE INDEX IF NOT EXISTS urlTime ON ShortUrlClick (url, time)",
+                     &[])
             .unwrap();
     });
 
@@ -89,15 +77,23 @@ fn main() {
 
     let addr = ([0, 0, 0, 0], 6980).into();
 
-    let new_svc = || {
-        service_fn(|_req|{
-            svc_routes(_req)
-        })
-    };
+    run(future::lazy(move || {
+        let new_svc = move || {
+            let server_pool = db_pool.clone();
 
-    let server = Server::bind(&addr)
-        .serve(new_svc)
-        .map_err(|e| eprintln!("server error: {}", e));
+            let vromio = VromioServer {
+                data_source: server_pool
+            };
 
-    hyper::rt::run(server);
+            service_fn(move |_req| {
+                svc_routes(_req, &vromio)
+            })
+        };
+
+        let server = Server::bind(&addr)
+            .serve(new_svc)
+            .map_err(|e| eprintln!("server error: {}", e));
+
+        server
+    }));
 }

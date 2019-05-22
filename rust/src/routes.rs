@@ -1,9 +1,11 @@
 extern crate hyper;
 extern crate serde_json;
 extern crate url;
+extern crate regex;
 
-use hyper::{Body, Response, Request, Method, StatusCode, Version};
+use hyper::{Body, Response, Request, Method, StatusCode};
 use futures::{future, Future, Stream};
+use regex::Regex;
 use serde_json::{from_str, Value, to_string};
 use url::{Url};
 
@@ -11,102 +13,65 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 
 use super::server::{VromioServer, VromioApi};
+use super::lib::{not_found, success, method_not_allowed, bad_request, redirect};
 
 static NOT_FOUND: &[u8] = b"Not Found";
-static SUCCESS: &[u8] = b"Success";
 static URL_SHORTENER_KEY: &str = "VERYSECRETayylmaoKEYURLS6969";
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseFuture = Box<Future<Item=Response<Body>, Error=GenericError> + Send>;
 
-fn parse_uri_param<K, V>(uri: &str) -> HashMap<K,V>
-    where HashMap<K, V>: FromIterator<(String, String)>
-{
-    let req_url = Url::parse(&uri).unwrap();
+fn parse_uri_param<K, V>(host: &str, uri: &str) -> HashMap<K,V> where HashMap<K, V>: FromIterator<(String, String)> {
+    let full_url = format!("{host}{uri}", host = host, uri = uri);
+
+    let req_url = Url::parse(&full_url).unwrap();
     let params: HashMap<K,V> = req_url.query_pairs().into_owned().collect();
 
     params
 }
 
-fn redirect(url: &str) -> Response<Body> {
-    Response::builder()
-        .version(Version::HTTP_11)
-        .status(StatusCode::SEE_OTHER)
-        .header("location", url)
-        .body(Body::empty())
-        .unwrap()
-}
-
 pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => {
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::OK)
-                .body(Body::from(SUCCESS))
-                .unwrap()
-            ))
-        },
-        (&Method::GET, "/urls/.*") => {
-            let path_suffix = req.uri().path().trim_start_matches("/v2/urls").to_owned();
+    lazy_static! {
+        static ref urls_route: Regex = Regex::new(r"/urls/.*").unwrap();
+        static ref analytics_route: Regex = Regex::new(r"/urls/analytics/.*").unwrap();
+        static ref analytics_list_route: Regex = Regex::new(r"/urls/analytics").unwrap();
+    }
 
-            let url: Option<String> = server.fetch_url(req, &path_suffix);
+    let path = req.uri().path();
+    let method = req.method();
 
-            if url.is_some() {
-                Box::new(future::ok(redirect(&url.unwrap())))
-            } else {
-                Box::new(future::ok(Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(String::from("Url not found")))
-                    .unwrap()
-                ))
-            }
-        },
-        (&Method::POST, "/urls/.*") => {
-            let uri = req.uri().to_string();
-            let host = req.uri().host().unwrap().to_string();
+    if analytics_route.is_match(path) {
+        if method == &Method::GET {
+            let path_suffix = req.uri().path().trim_start_matches("/urls/analytics/");
 
-            let params = parse_uri_param(&uri);
-            let sid = params.get("sid");
-            let path_suffix = req.uri().path().trim_start_matches("/v2/urls").to_string();
-            let server_owned = server.clone();
+            let urls: Vec<&str> = path_suffix
+                .split(",")
+                .collect();
 
-            if path_suffix.is_empty() && sid.unwrap() == URL_SHORTENER_KEY {
-                let response = req
-                    .into_body()
-                    .concat2()
-                    .from_err()
-                    .and_then(move |body| {
-                        let str = String::from_utf8(body.to_vec()).unwrap();
-                        let data : Value = from_str(&str).unwrap();
+            let response = match server.analytics(urls) {
+                Ok(analytics) => {
+                    success(to_string(&analytics).unwrap())
+                },
+                Err(err) => {
+                    println!("{}", err);
+                    not_found(Some("url analytics not found"))
+                }
+            };
 
-                        let url = &server_owned.shorten(&data.to_string());
-                        let fmt_url = format!("https://{host}/{result}", host = host, result = url);
-                        let json = to_string(&fmt_url).unwrap();
-                        let response = Response::builder()
-                            .status(StatusCode::OK)
-                            .body(Body::from(json))
-                            .unwrap();
+            return Box::new(future::ok(response));
+        }
 
-                        Ok(response)
-                    });
+        if method == &Method::POST {
+            return Box::new(future::ok(method_not_allowed("url not found")));
+        }
+    }
 
-                return Box::new(response);
-            } else {
-                Box::new(future::ok(Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(Body::from("url not found"))
-                    .unwrap()
-                ))
-            }
-        },
-        (&Method::GET, "/urls/analytics") => {
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from(String::from("Url not found")))
-                .unwrap()
-            ))
-        },
-        (&Method::POST, "/urls/analytics") => {
+    if analytics_list_route.is_match(path) {
+        if method == &Method::GET {
+            return Box::new(future::ok(method_not_allowed("url not found")));
+        }
+
+        if method == &Method::POST {
             let server_owned = server.clone();
             let response = req
                 .into_body()
@@ -117,51 +82,87 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
                     let urls: Vec<&str> = from_str(&body_str).unwrap();
 
                     if urls.is_empty() {
-                        let response = Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body(Body::from("Must send a list of strings"))
-                            .unwrap();
+                        let response = bad_request("Must send a list of strings");
 
                         Ok(response)
                     } else {
-                        Ok(Response::builder()
-                            .status(StatusCode::OK)
-                            .body(Body::from(to_string(&server_owned.analytics(urls)).unwrap()))
-                            .unwrap()
-                        )
+                        let result = match &server_owned.analytics(urls) {
+                            Ok(analytics) => {
+                                success(to_string(&analytics).unwrap())
+                            },
+                            Err(err) => {
+                                println!("{}", err);
+                                not_found(Some("url analytics not found"))
+                            }
+                        };
+
+                        Ok(result)
                     }
                 });
 
-            Box::new(response)
-        },
-        (&Method::GET, "/urls/analytics/*") => {
-            let path_suffix = req.uri().path().trim_start_matches("/v2/urls/analytics/");
-
-            let urls: Vec<&str> = path_suffix
-                .split(",")
-                .collect();
-
-            let analytics = server.analytics(urls);
-
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::OK)
-                .body(Body::from(to_string(&analytics).unwrap()))
-                .unwrap()
-            ))
-        },
-        (&Method::POST, "/urls/analytics/*") => {
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from(String::from("Url not found")))
-                .unwrap()
-            ))
-        },
-        _ => {
-            Box::new(future::ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from(NOT_FOUND))
-                .unwrap()
-            ))
+            return Box::new(response);
         }
     }
+
+    if urls_route.is_match(path) {
+        if method == &Method::GET {
+            let path_suffix = req.uri().path().trim_start_matches("/urls/").to_string();
+
+            let url: Option<String> = match server.fetch_url(req, &path_suffix) {
+                Ok(url) => url,
+                Err(_e) => None
+            };
+
+            if url.is_some() {
+                return Box::new(future::ok(redirect(&url.unwrap())));
+            } else {
+                return Box::new(future::ok(not_found(Some("url not found"))));
+            }
+        }
+
+        if method == &Method::POST {
+            let uri = req.uri().to_string();
+            let host = req.headers().get("host").unwrap().to_str().unwrap().to_string();
+
+            let params = parse_uri_param(&host, &uri);
+            let sid = params.get("sid").unwrap();
+            let path_suffix = req.uri().path().trim_start_matches("/urls/").to_string();
+            let server_owned = server.clone();
+
+            if path_suffix.is_empty() && sid == URL_SHORTENER_KEY {
+                let response = req
+                    .into_body()
+                    .concat2()
+                    .from_err()
+                    .and_then(move |body| {
+                        let str = String::from_utf8(body.to_vec()).unwrap();
+                        let data: Value = from_str(&str).unwrap();
+
+                        let url = match &server_owned.shorten(&data["url"].as_str().unwrap()) {
+                            Ok(u) => {
+                                let fmt_url = format!("https://{host}/{result}", host = host, result = u);
+                                let json = to_string(&fmt_url).unwrap();
+
+                                success(json)
+                            },
+                            Err(_e) => {
+                                not_found(Some("could not shorten url"))
+                            }
+                        };
+
+                        Ok(url)
+                    });
+
+                return Box::new(response);
+            } else {
+                return Box::new(future::ok(not_found(Some("url not found"))));
+            }
+        }
+    }
+
+    return Box::new(future::ok(Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .body(Body::from(NOT_FOUND))
+        .unwrap()
+    ));
 }

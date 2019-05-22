@@ -8,6 +8,7 @@ extern crate time;
 extern crate uuid;
 
 use std::collections::HashMap;
+use std::error::Error;
 
 use chrono::prelude::*;
 use chrono::NaiveDateTime;
@@ -26,41 +27,35 @@ pub struct VromioServer {
 }
 
 pub trait VromioApi {
-    fn shorten(&self, url: &str) -> String;
-    fn analytics(&self, urls: Vec<&str>) -> AnalyticsResult;
-    fn fetch_url(&self, req: Request<Body>, code: &str) -> Option<String>;
+    fn shorten(&self, url: &str) -> Result<String, Box<Error>>;
+    fn analytics(&self, urls: Vec<&str>) -> Result<AnalyticsResult, Box<Error>>;
+    fn fetch_url(&self, req: Request<Body>, code: &str) -> Result<Option<String>, Box<Error>>;
 }
 
 impl VromioApi for VromioServer {
-    fn shorten(&self, url: &str) -> String {
+    fn shorten(&self, url: &str) -> Result<String, Box<Error>> {
         let id: i64 = new_id();
         let token = SecureRandomBase64::generate();
         let expiry = Utc::now().naive_utc() + Duration::days(365);
 
         let stmt = "INSERT INTO ShortUrl (id, code, url, expiry)  VALUES ($1, $2, $3, $4)";
 
-        let client = self.data_source
-            .get()
-            .unwrap();
+        let client = self.data_source.get()?;
 
-        client
-            .execute(stmt, &[&id, &token, &url, &expiry])
-            .unwrap();
+        client.execute(stmt, &[&id, &token, &url, &expiry])?;
 
-        return token.to_string();
+        return Ok(token.to_string());
     }
 
-    fn analytics(&self, urls: Vec<&str>) -> AnalyticsResult {
+    fn analytics(&self, urls: Vec<&str>) -> Result<AnalyticsResult, Box<Error>> {
         let query = "SELECT T1.code code, T2.id id, T2.addr addr, T2.ref referer, T2.agent agent, T2.time click_time
             FROM ShortUrl T1
             INNER JOIN ShortUrlClick T2 ON (T2.url = T1.id)
             WHERE T1.code = ANY($1)";
 
-        let client = self.data_source
-            .get()
-            .unwrap();
+        let client = self.data_source.get()?;
 
-        let rows = client.query(query, &[&urls]).unwrap();
+        let rows = client.query(query, &[&urls])?;
         let mut links: HashMap<String, LinkClicks>  = HashMap::with_capacity(urls.len());
 
         // refactor entire thing
@@ -98,22 +93,20 @@ impl VromioApi for VromioServer {
             }
         }
 
-        AnalyticsResult {
+        Ok(AnalyticsResult {
             links
-        }
+        })
     }
 
-    fn fetch_url(&self, req: Request<Body>, code: &str) -> Option<String> {
+    fn fetch_url(&self, req: Request<Body>, code: &str) -> Result<Option<String>, Box<Error>> {
         let query = "SELECT id, code, url, expiry
         FROM ShortUrl WHERE (code = $1)";
 
-        let client = self.data_source
-            .get()
-            .unwrap();
+        let client = self.data_source.get()?;
 
-        let rows = client.query(query, &[&code]).unwrap();
+        let rows = client.query(query, &[&code])?;
         if rows.is_empty() {
-            return None;
+            return Ok(None);
         }
 
         let row = rows.get(0);
@@ -137,29 +130,25 @@ impl VromioApi for VromioServer {
                 None => ""
             };
 
-            self.record_click(id.unwrap(), fwd_for, referer, agent);
+            self.record_click(id.unwrap(), fwd_for, referer, agent)?;
 
-            return url;
+            return Ok(url);
         } else {
-            return None;
+            return Ok(None);
         }
     }
 }
 
 impl VromioServer {
-    fn record_click(&self, url_id: i64, fwd_for: &str, referer: &str, agent: &str) {
+    fn record_click(&self, url_id: i64, fwd_for: &str, referer: &str, agent: &str) -> Result<u64, Box<Error>> {
         let stmt = "INSERT INTO ShortUrlClick (id, url, time, addr, ref, agent)
             VALUES ($1, $2, $3, $4, $5, $6)";
 
-        let client = self.data_source
-            .get()
-            .unwrap();
+        let client = self.data_source.get()?;
 
         let id = new_id();
         let time = Utc::now().naive_utc();
 
-        client
-            .execute(stmt, &[&id, &url_id, &time, &fwd_for, &referer, &agent])
-            .unwrap();
+        Ok(client.execute(stmt, &[&id, &url_id, &time, &fwd_for, &referer, &agent])?)
     }
 }

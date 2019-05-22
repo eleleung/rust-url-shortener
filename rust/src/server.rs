@@ -33,11 +33,11 @@ pub trait VromioApi {
 
 impl VromioApi for VromioServer {
     fn shorten(&self, url: &str) -> String {
-        let id = new_id();
+        let id: i64 = new_id();
         let token = SecureRandomBase64::generate();
         let expiry = Utc::now().naive_utc() + Duration::days(365);
 
-        let stmt = "INSERT INTO ShortUrl (id, code, url, expiry)  VALUES ($1 $2 $3 $4)";
+        let stmt = "INSERT INTO ShortUrl (id, code, url, expiry)  VALUES ($1, $2, $3, $4)";
 
         let client = self.data_source
             .get()
@@ -51,10 +51,10 @@ impl VromioApi for VromioServer {
     }
 
     fn analytics(&self, urls: Vec<&str>) -> AnalyticsResult {
-        let query = "SELECT T2.id t2f0, T2.code t2f1, T2.url t2f2, T2.expiry t2f3
-            FROM ShortUrl T2
-            INNER JOIN ShortUrlClick T1 ON (T2.id = T1.url)
-            WHERE T2.code IN ($1)";
+        let query = "SELECT T1.code code, T2.id id, T2.addr addr, T2.ref referer, T2.agent agent, T2.time click_time
+            FROM ShortUrl T1
+            INNER JOIN ShortUrlClick T2 ON (T2.url = T1.id)
+            WHERE T1.code = ANY($1)";
 
         let client = self.data_source
             .get()
@@ -69,9 +69,9 @@ impl VromioApi for VromioServer {
 
             let id_val: i64 = row.get("id");
             let addr: String = row.get("addr");
-            let referrer: String = row.get("ref");
+            let referrer: String = row.get("referer");
             let agent: String = row.get("agent");
-            let time: NaiveDateTime = row.get("time");
+            let time: NaiveDateTime = row.get("click_time");
             let id = Id {
                 value: id_val
             };
@@ -104,50 +104,59 @@ impl VromioApi for VromioServer {
     }
 
     fn fetch_url(&self, req: Request<Body>, code: &str) -> Option<String> {
-        let query = "SELECT T2.id t2f0, T2.code t2f1, T2.url t2f2, T2.expiry t2f3
-        FROM ShortUrl T2 WHERE (T2.code = $1)";
+        let query = "SELECT id, code, url, expiry
+        FROM ShortUrl WHERE (code = $1)";
 
         let client = self.data_source
             .get()
             .unwrap();
 
         let rows = client.query(query, &[&code]).unwrap();
-        let row = rows.get(0);
-        let url: Option<String> = match row.get("url") {
-            Some(url) => url,
-            None => None
-        };
-
-        if url.is_some() {
-            let id: Option<i64> = match row.get("id") {
-                Some(url) => url,
-                None => None
-            };
-
-            if id.is_some() {
-                let fwd_for = req.headers().get("x-forwarded-for").unwrap().to_str().unwrap_or("");
-                let referer = req.headers().get("referer").unwrap().to_str().unwrap_or("");
-                let agent = req.headers().get("user-agent").unwrap().to_str().unwrap_or("");
-
-                self.record_click(id.unwrap(), fwd_for, referer, agent);
-            }
+        if rows.is_empty() {
+            return None;
         }
 
-        url
+        let row = rows.get(0);
+
+        let id: Option<i64> = row.get("id");
+        let url: Option<String> = row.get("url");
+
+        if url.is_some() && id.is_some() {
+            let fwd_for = match req.headers().get("x-forwarded-for") {
+                Some(fwd) => fwd.to_str().unwrap(),
+                None => ""
+            };
+
+            let referer = match req.headers().get("referer") {
+                Some(referer) => referer.to_str().unwrap(),
+                None => ""
+            };
+
+            let agent = match req.headers().get("user-agent") {
+                Some(agent) => agent.to_str().unwrap(),
+                None => ""
+            };
+
+            self.record_click(id.unwrap(), fwd_for, referer, agent);
+
+            return url;
+        } else {
+            return None;
+        }
     }
 }
 
 impl VromioServer {
     fn record_click(&self, url_id: i64, fwd_for: &str, referer: &str, agent: &str) {
         let stmt = "INSERT INTO ShortUrlClick (id, url, time, addr, ref, agent)
-            VALUES ($1 $2 $3 $4 $5)";
+            VALUES ($1, $2, $3, $4, $5, $6)";
 
         let client = self.data_source
             .get()
             .unwrap();
 
         let id = new_id();
-        let time = Utc::now();
+        let time = Utc::now().naive_utc();
 
         client
             .execute(stmt, &[&id, &url_id, &time, &fwd_for, &referer, &agent])

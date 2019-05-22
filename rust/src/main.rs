@@ -2,6 +2,8 @@ extern crate hyper;
 extern crate postgres;
 extern crate r2d2;
 extern crate r2d2_postgres;
+extern crate regex;
+#[macro_use] extern crate lazy_static;
 
 use std::env;
 use std::io;
@@ -49,7 +51,7 @@ fn main() {
                 id bigint check (id > 0) NOT NULL,
                 code varchar(128) NOT NULL,
                 url varchar(4096) NOT NULL,
-                expiry bigint NOT NULL,
+                expiry timestamp NOT NULL,
                 PRIMARY KEY (id),
                 CONSTRAINT code UNIQUE (code)
             )", &[])
@@ -59,7 +61,7 @@ fn main() {
             .execute("CREATE TABLE IF NOT EXISTS ShortUrlClick (
                 id bigint check (id > 0) NOT NULL,
                 url bigint NOT NULL,
-                time bigint NOT NULL,
+                time timestamp NOT NULL,
                 addr varchar(32) NOT NULL,
                 ref varchar(4096) NOT NULL,
                 agent varchar(4096) NOT NULL,

@@ -135,7 +135,7 @@ impl VromioApi for VromioServer {
 
 impl VromioServer {
     fn record_click(&self, url_id: &str, fwd_for: &str, referer: &str, agent: &str) -> Result<u64, Box<Error>> {
-        let stmt = "INSERT INTO ShortUrlClick (id, url, time, addr, ref, agent)
+        let stmt = "INSERT INTO ShortUrlClick (id, url, time, addr, referer, agent)
             VALUES ($1, $2, $3, $4, $5, $6)";
 
         let client = self.data_source.get()?;

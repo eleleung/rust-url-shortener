@@ -1,11 +1,24 @@
+extern crate base64;
 extern crate hyper;
 extern crate rand;
 
+use base64::URL_SAFE_NO_PAD;
 use chrono::prelude::Utc;
 use hyper::{Body, Response, Version, StatusCode};
+use rand::Rng;
 
-pub fn new_id() -> i64 {
-    return Utc::now().timestamp_millis();
+pub fn new_id() -> String {
+    let mut now = Utc::now().timestamp_millis();
+    let mut bytes = rand::thread_rng().gen::<[u8; 12]>();
+
+    for n in 0..6 {
+        bytes[5 - n] = now as u8;
+        now = now >> 8;
+    }
+
+    let id = base64::encode_config(&bytes, URL_SAFE_NO_PAD);
+
+    return id;
 }
 
 pub fn redirect(url: &str) -> Response<Body> {

@@ -48,7 +48,7 @@ fn main() {
 
         client
             .execute("CREATE TABLE IF NOT EXISTS ShortUrl (
-                id bigint check (id > 0) NOT NULL,
+                id varchar(128) NOT NULL,
                 code varchar(128) NOT NULL,
                 url varchar(4096) NOT NULL,
                 expiry timestamp NOT NULL,
@@ -59,11 +59,11 @@ fn main() {
 
         client
             .execute("CREATE TABLE IF NOT EXISTS ShortUrlClick (
-                id bigint check (id > 0) NOT NULL,
-                url bigint NOT NULL,
+                id varchar(128) NOT NULL,
+                url varchar(128) NOT NULL,
                 time timestamp NOT NULL,
                 addr varchar(32) NOT NULL,
-                ref varchar(4096) NOT NULL,
+                referer varchar(4096) NOT NULL,
                 agent varchar(4096) NOT NULL,
                 PRIMARY KEY (id)
             )", &[])

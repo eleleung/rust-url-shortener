@@ -12,10 +12,9 @@ pub struct Id {
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]
 pub struct ShortUrlClick {
-    pub id: Id,
     pub time: NaiveDateTime,
     pub addr: String,
-    pub referrer: String,
+    pub referer: String,
     pub agent: String
 }
 

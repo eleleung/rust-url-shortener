@@ -11,9 +11,10 @@ use url::{Url};
 
 use std::collections::HashMap;
 use std::iter::FromIterator;
+use std::error::Error;
 
 use super::server::{VromioServer, VromioApi};
-use super::lib::{not_found, success, method_not_allowed, bad_request, redirect};
+use super::lib::{not_found, success, method_not_allowed, bad_request, redirect, not_authorized};
 
 static NOT_FOUND: &[u8] = b"Not Found";
 static URL_SHORTENER_KEY: &str = "VERYSECRETayylmaoKEYURLS6969";
@@ -21,13 +22,15 @@ static URL_SHORTENER_KEY: &str = "VERYSECRETayylmaoKEYURLS6969";
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseFuture = Box<Future<Item=Response<Body>, Error=GenericError> + Send>;
 
-fn parse_uri_param<K, V>(host: &str, uri: &str) -> HashMap<K,V> where HashMap<K, V>: FromIterator<(String, String)> {
+fn parse_uri_param<K, V>(host: &str, uri: &str) -> Result<HashMap<K,V>, Box<Error>>
+    where HashMap<K, V>: FromIterator<(String, String)>
+{
     let full_url = format!("{host}{uri}", host = host, uri = uri);
 
-    let req_url = Url::parse(&full_url).unwrap();
+    let req_url = Url::parse(&full_url)?;
     let params: HashMap<K,V> = req_url.query_pairs().into_owned().collect();
 
-    params
+    Ok(params)
 }
 
 pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
@@ -108,7 +111,7 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
         if method == &Method::GET {
             let path_suffix = req.uri().path().trim_start_matches("/urls/").to_string();
 
-            let url: Option<String> = match server.fetch_url(req, &path_suffix) {
+            let url: Option<String> = match server.fetch_url(req, &path_suffix.as_str()) {
                 Ok(url) => url,
                 Err(_e) => None
             };
@@ -124,39 +127,50 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
             let uri = req.uri().to_string();
             let host = req.headers().get("host").unwrap().to_str().unwrap().to_string();
 
-            let params = parse_uri_param(&host, &uri);
-            let sid = params.get("sid").unwrap();
-            let path_suffix = req.uri().path().trim_start_matches("/urls/").to_string();
-            let server_owned = server.clone();
+            match parse_uri_param(&host, &uri) {
+                Ok(p) => {
+                    let sid = p.get("sid");
 
-            if path_suffix.is_empty() && sid == URL_SHORTENER_KEY {
-                let response = req
-                    .into_body()
-                    .concat2()
-                    .from_err()
-                    .and_then(move |body| {
-                        let str = String::from_utf8(body.to_vec()).unwrap();
-                        let data: Value = from_str(&str).unwrap();
+                    if sid.is_some() {
+                        let path_suffix = req.uri().path().trim_start_matches("/urls/").to_string();
+                        let server_owned = server.clone();
 
-                        let url = match &server_owned.shorten(&data["url"].as_str().unwrap()) {
-                            Ok(u) => {
-                                let fmt_url = format!("https://{host}/{result}", host = host, result = u);
-                                let json = to_string(&fmt_url).unwrap();
+                        if path_suffix.is_empty() && sid.unwrap() == URL_SHORTENER_KEY {
+                            let response = req
+                                .into_body()
+                                .concat2()
+                                .from_err()
+                                .and_then(move |body| {
+                                    let str = String::from_utf8(body.to_vec()).unwrap();
+                                    let data: Value = from_str(&str).unwrap();
 
-                                success(json)
-                            },
-                            Err(_e) => {
-                                not_found(Some("could not shorten url"))
-                            }
-                        };
+                                    let url = match &server_owned.shorten(&data["url"].as_str().unwrap()) {
+                                        Ok(u) => {
+                                            let fmt_url = format!("https://{host}/{result}", host = host, result = u);
+                                            let json = to_string(&fmt_url).unwrap();
 
-                        Ok(url)
-                    });
+                                            success(json)
+                                        },
+                                        Err(_e) => {
+                                            not_found(Some("could not shorten url"))
+                                        }
+                                    };
 
-                return Box::new(response);
-            } else {
-                return Box::new(future::ok(not_found(Some("url not found"))));
-            }
+                                    Ok(url)
+                                });
+
+                            return Box::new(response);
+                        } else {
+                            return Box::new(future::ok(not_found(Some("url not found"))));
+                        }
+                    } else {
+                        return Box::new(future::ok(not_authorized("missing sid")));
+                    }
+                },
+                Err(_e) => {
+                    return Box::new(future::ok(not_authorized("missing query params")));
+                }
+            };
         }
     }
 

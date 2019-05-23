@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::error::Error;
 
-use hyper::{Body, Response, Request, Method};
+use hyper::{Body, Response, Request, Method, Chunk};
 use futures::{future, Future, Stream};
 use regex::Regex;
 use serde_json::{from_str, Value, to_string};
@@ -32,6 +32,13 @@ fn parse_uri_param<K, V>(host: &str, uri: &str) -> Result<HashMap<K,V>, Box<Erro
     Ok(params)
 }
 
+fn parse_body(body: Chunk) -> Result<Vec<String>, Box<Error>> {
+    let body_str = String::from_utf8(body.to_vec())?;
+    let urls: Vec<String> = from_str(&body_str)?;
+
+    Ok(urls)
+}
+
 pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
     lazy_static! {
         static ref urls_route: Regex = Regex::new(r"/urls/.*").unwrap();
@@ -47,8 +54,9 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
             &Method::GET => {
                 let path_suffix = req.uri().path().trim_start_matches("/urls/analytics/").to_string();
 
-                let urls: Vec<&str> = path_suffix
+                let urls: Vec<String> = path_suffix
                     .split(",")
+                    .map(|s| String::from(s))
                     .collect();
 
                 let response = match server.analytics(urls) {
@@ -76,8 +84,10 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
                     .concat2()
                     .from_err()
                     .and_then(move |body| {
-                        let body_str = String::from_utf8(body.to_vec()).unwrap();
-                        let urls: Vec<&str> = from_str(&body_str).unwrap();
+                        let urls = match parse_body(body) {
+                            Ok(b) => b,
+                            Err(_e) => vec![]
+                        };
 
                         if urls.is_empty() {
                             let response = bad_request("Must send a list of strings");

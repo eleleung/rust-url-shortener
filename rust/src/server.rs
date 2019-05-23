@@ -28,7 +28,7 @@ pub struct VromioServer {
 
 pub trait VromioApi {
     fn shorten(&self, url: &str) -> Result<String, Box<Error>>;
-    fn analytics(&self, urls: Vec<&str>) -> Result<AnalyticsResult, Box<Error>>;
+    fn analytics(&self, urls: Vec<String>) -> Result<AnalyticsResult, Box<Error>>;
     fn fetch_url(&self, req: Request<Body>, code: &str) -> Result<Option<String>, Box<Error>>;
 }
 
@@ -47,7 +47,7 @@ impl VromioApi for VromioServer {
         return Ok(token.to_string());
     }
 
-    fn analytics(&self, urls: Vec<&str>) -> Result<AnalyticsResult, Box<Error>> {
+    fn analytics(&self, urls: Vec<String>) -> Result<AnalyticsResult, Box<Error>> {
         let query = "SELECT T1.code code, T2.id id, T2.addr addr, T2.referer referer, T2.agent agent, T2.time click_time
             FROM ShortUrl T1
             INNER JOIN ShortUrlClick T2 ON (T2.url = T1.id)

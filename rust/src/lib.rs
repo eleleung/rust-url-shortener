@@ -17,6 +17,13 @@ pub fn redirect(url: &str) -> Response<Body> {
         .unwrap()
 }
 
+pub fn not_authorized(body: &str) -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::UNAUTHORIZED)
+        .body(Body::from(String::from(body)))
+        .unwrap()
+}
+
 pub fn not_found(body: Option<&str>) -> Response<Body> {
     match body {
         Some(b) => {

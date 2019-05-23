@@ -8,6 +8,7 @@ extern crate time;
 extern crate uuid;
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry::{Vacant, Occupied};
 use std::error::Error;
 
 use chrono::prelude::*;
@@ -56,9 +57,8 @@ impl VromioApi for VromioServer {
         let client = self.data_source.get()?;
 
         let rows = client.query(query, &[&urls])?;
-        let mut links: HashMap<String, LinkClicks>  = HashMap::with_capacity(urls.len());
+        let mut links: HashMap<String, LinkClicks>  = HashMap::new();
 
-        // refactor entire thing
         for row in &rows {
             let code: String = row.get("code");
 
@@ -79,17 +79,17 @@ impl VromioApi for VromioServer {
                 agent
             };
 
-            if links.contains_key(&code) {
-                let mut link_clicks: LinkClicks = links.remove(&code).unwrap();
-                link_clicks.clicks.push(link_click);
+            match links.entry(code) {
+                Vacant(e) => {
+                    let link_clicks = LinkClicks {
+                        clicks: vec![link_click]
+                    };
 
-                links.insert(code.to_string(), link_clicks);
-            } else {
-                let link_clicks = LinkClicks {
-                    clicks: vec![link_click]
-                };
-
-                links.insert(code.to_string(), link_clicks);
+                    e.insert(link_clicks);
+                },
+                Occupied(mut e) => {
+                    e.get_mut().clicks.push(link_click);
+                }
             }
         }
 

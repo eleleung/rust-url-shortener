@@ -1,8 +1,3 @@
-extern crate hyper;
-extern crate serde_json;
-extern crate url;
-extern crate regex;
-
 use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::error::Error;
@@ -20,6 +15,12 @@ static URL_SHORTENER_KEY: &str = "VERYSECRETayylmaoKEYURLS6969";
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseFuture = Box<Future<Item=Response<Body>, Error=GenericError> + Send>;
+
+lazy_static! {
+    static ref analytics_route: Regex = Regex::new(r"/urls/analytics/.*").unwrap();
+    static ref analytics_list_route: Regex = Regex::new(r"/urls/analytics").unwrap();
+    static ref urls_route: Regex = Regex::new(r"/urls/.*").unwrap();
+}
 
 fn parse_uri_param<K, V>(host: &str, uri: &str) -> Result<HashMap<K,V>, Box<Error>>
     where HashMap<K, V>: FromIterator<(String, String)>
@@ -40,12 +41,6 @@ fn parse_body(body: Chunk) -> Result<Vec<String>, Box<Error>> {
 }
 
 pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
-    lazy_static! {
-        static ref analytics_route: Regex = Regex::new(r"/urls/analytics/.*").unwrap();
-        static ref analytics_list_route: Regex = Regex::new(r"/urls/analytics").unwrap();
-        static ref urls_route: Regex = Regex::new(r"/urls/.*").unwrap();
-    }
-
     let path = req.uri().path();
     let method = req.method();
 
@@ -73,9 +68,7 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
                 return Box::new(future::ok(method_not_allowed("url not found")));
             }
         }
-    }
-
-    if analytics_list_route.is_match(path) {
+    } else if analytics_list_route.is_match(path) {
         match method {
             &Method::POST => {
                 let server_ref = server.clone();
@@ -113,9 +106,7 @@ pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
                 return Box::new(future::ok(method_not_allowed("url not found")));
             }
         }
-    }
-
-    if urls_route.is_match(path) {
+    } else if urls_route.is_match(path) {
         match method {
             &Method::GET => {
                 let path_suffix = req.uri().path().trim_start_matches("/urls/").to_string();

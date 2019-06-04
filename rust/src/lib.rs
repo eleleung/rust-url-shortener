@@ -1,7 +1,3 @@
-extern crate base64;
-extern crate hyper;
-extern crate rand;
-
 use base64::URL_SAFE_NO_PAD;
 use chrono::prelude::Utc;
 use hyper::{Body, Response, Version, StatusCode};

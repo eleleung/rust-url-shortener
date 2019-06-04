@@ -1,11 +1,3 @@
-extern crate chrono;
-extern crate hyper;
-extern crate rand;
-extern crate r2d2;
-extern crate r2d2_postgres;
-extern crate postgres;
-extern crate time;
-
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Vacant, Occupied};
 use std::error::Error;

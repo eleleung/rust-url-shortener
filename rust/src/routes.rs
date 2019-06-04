@@ -41,9 +41,9 @@ fn parse_body(body: Chunk) -> Result<Vec<String>, Box<Error>> {
 
 pub fn svc_routes(req: Request<Body>, server: &VromioServer) -> ResponseFuture {
     lazy_static! {
-        static ref urls_route: Regex = Regex::new(r"/urls/.*").unwrap();
         static ref analytics_route: Regex = Regex::new(r"/urls/analytics/.*").unwrap();
         static ref analytics_list_route: Regex = Regex::new(r"/urls/analytics").unwrap();
+        static ref urls_route: Regex = Regex::new(r"/urls/.*").unwrap();
     }
 
     let path = req.uri().path();

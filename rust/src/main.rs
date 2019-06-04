@@ -12,15 +12,14 @@ use futures::{Future, future};
 
 use r2d2_postgres::PostgresConnectionManager;
 
-mod routes;
 use routes::svc_routes;
+use server::VromioServer;
 
+mod lib;
 mod models;
 mod random;
-mod lib;
-
+mod routes;
 mod server;
-use server::VromioServer;
 
 fn main() {
     let db_host = env::var("DB_HOST").expect("DB_HOST must be set");
@@ -38,11 +37,10 @@ fn main() {
 
     let pool = db_pool.clone();
 
-    let handler = thread::spawn(move || {
-        let client = pool.get().unwrap();
+    let client = pool.get().unwrap();
 
-        client
-            .execute("CREATE TABLE IF NOT EXISTS ShortUrl (
+    client
+        .execute("CREATE TABLE IF NOT EXISTS ShortUrl (
                 id varchar(128) NOT NULL,
                 code varchar(128) NOT NULL,
                 url varchar(4096) NOT NULL,
@@ -50,10 +48,10 @@ fn main() {
                 PRIMARY KEY (id),
                 CONSTRAINT code UNIQUE (code)
             )", &[])
-            .unwrap();
+        .unwrap();
 
-        client
-            .execute("CREATE TABLE IF NOT EXISTS ShortUrlClick (
+    client
+        .execute("CREATE TABLE IF NOT EXISTS ShortUrlClick (
                 id varchar(128) NOT NULL,
                 url varchar(128) NOT NULL,
                 time timestamp NOT NULL,
@@ -62,15 +60,12 @@ fn main() {
                 agent varchar(4096) NOT NULL,
                 PRIMARY KEY (id)
             )", &[])
-            .unwrap();
+        .unwrap();
 
-        client
-            .execute("CREATE INDEX IF NOT EXISTS urlTime ON ShortUrlClick (url, time)",
-                     &[])
-            .unwrap();
-    });
-
-    handler.join().unwrap();
+    client
+        .execute("CREATE INDEX IF NOT EXISTS urlTime ON ShortUrlClick (url, time)",
+                 &[])
+        .unwrap();
 
     let addr = ([0, 0, 0, 0], 6980).into();
 

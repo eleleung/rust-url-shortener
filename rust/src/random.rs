@@ -1,6 +1,3 @@
-extern crate base64;
-extern crate rand;
-
 use base64::{URL_SAFE_NO_PAD};
 use rand::{Rng};
 
